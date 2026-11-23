@@ -1,19 +1,27 @@
+"""Small test problems and a finite-difference check for derivatives."""
+
 import numpy as np
 
+
 def make_quadratic(A, b):
-    A = np.asarray(A)
-    b = np.asarray(b)
+    """Build f, g, and h for the quadratic 0.5 * x.T @ A @ x - b.T @ x."""
+    matrix = np.asarray(A)
+    linear_term = np.asarray(b)
 
     def f(x):
-        return 0.5 * (x @ A @ x) - b @ x
+        return 0.5 * (x @ matrix @ x) - linear_term @ x
+
     def g(x):
-        return 0.5 * ((A + A.T) @ x) - b
+        return 0.5 * ((matrix + matrix.T) @ x) - linear_term
+
     def h(x):
-        return 0.5 * (A + A.T)
+        return 0.5 * (matrix + matrix.T)
 
     return f, g, h
 
+
 def double_well():
+    """Build a two-dimensional function with minima at (-1, 0) and (1, 0)."""
     def f(x):
         x1 = x[0]
         x2 = x[1]
@@ -28,52 +36,60 @@ def double_well():
 
     def h(x):
         x1 = x[0]
-        x2 = x[1]
-
-        temp = [[12 * x1**2 - 4, 0], [0, 2]]
-        return np.array(temp)
+        return np.array([[12 * x1 ** 2 - 4, 0], [0, 2]])
 
     return f, g, h
 
+
 def rosenbrock():
+    """Build the Rosenbrock function and its derivatives."""
     def f(x):
         x1 = x[0]
         x2 = x[1]
 
-        return 100 * (x2 - x1 ** 2) **2 + (1 - x1) ** 2
+        return 100 * (x2 - x1 ** 2) ** 2 + (1 - x1) ** 2
 
     def g(x):
         x1 = x[0]
         x2 = x[1]
 
-        return np.array([-400 * x1 * (x2 - x1 ** 2) - 2 * (1 - x1), 200 * (x2 - x1 ** 2)])
+        gap = x2 - x1 ** 2
+        return np.array([-400 * x1 * gap - 2 * (1 - x1), 200 * gap])
 
     def h(x):
         x1 = x[0]
         x2 = x[1]
 
-        temp = [[-400 * (x2 - x1 ** 2) + 800 * x1 ** 2 + 2, -400 * x1], [-400 * x1, 200]]
-        return np.array(temp)
+        diagonal = -400 * (x2 - x1 ** 2) + 800 * x1 ** 2 + 2
+        cross_term = -400 * x1
+        return np.array([[diagonal, cross_term], [cross_term, 200]])
 
     return f, g, h
 
+
 def fd_check(f, g, h, x, eps=1e-6):
+    """Compare the supplied gradient and Hessian with central differences."""
     x = np.asarray(x, dtype=float)
-    n = len(x)
-    g_exact = g(x)
-    h_exact = h(x)
+    dimensions = len(x)
+    gradient = g(x)
+    hessian = h(x)
 
-    g_fd = np.zeros(n, dtype=float)
-    h_fd = np.zeros((n, n), dtype=float)
+    approx_gradient = np.zeros(dimensions, dtype=float)
+    approx_hessian = np.zeros((dimensions, dimensions), dtype=float)
 
-    for i in range(n):
-        e_i = np.zeros(n, dtype=float)
-        e_i[i] = eps
+    # Perturb one coordinate at a time to get one column of the Hessian.
+    for i in range(dimensions):
+        step = np.zeros(dimensions, dtype=float)
+        step[i] = eps
+        ahead = x + step
+        behind = x - step
 
-        g_fd[i] = (f(x + e_i) - f(x - e_i)) / (2.0 * eps)
-        h_fd[:, i] = (g(x + e_i) - g(x - e_i)) / (2.0 * eps)
+        approx_gradient[i] = (f(ahead) - f(behind)) / (2.0 * eps)
+        approx_hessian[:, i] = (g(ahead) - g(behind)) / (2.0 * eps)
 
-    grad_rel_err = np.linalg.norm(g_exact - g_fd) / max(1.0, np.linalg.norm(g_exact))
-    hess_rel_err = np.linalg.norm(h_exact - h_fd) / max(1.0, np.linalg.norm(h_exact))
-    return grad_rel_err, hess_rel_err
-        
+    gradient_error = np.linalg.norm(gradient - approx_gradient)
+    hessian_error = np.linalg.norm(hessian - approx_hessian)
+    return (
+        gradient_error / max(1.0, np.linalg.norm(gradient)),
+        hessian_error / max(1.0, np.linalg.norm(hessian)),
+    )

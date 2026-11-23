@@ -1,14 +1,8 @@
 import numpy as np
 
-# Lookup tables indexed by tissue label:
-# 0 = Background (dummy 1s prevent division by zero in background pixels)
-# 1 = White Matter (WM)
-# 2 = Gray Matter (GM)
-# 3 = Cerebrospinal Fluid (CSF)
-# 4 = Lesion
-T1_LUT = np.array([1.0, 800.0, 1300.0, 4000.0, 1800.0], dtype=float)
-S0_LUT = np.array([1.0, 0.70, 0.85, 1.00, 0.90], dtype=float)
-
+# A background T1 of 1 keeps the division safe. Its S0 of 0 keeps it dark.
+T1_LUT = np.array([1.0, 800.0, 1300.0, 4000.0, 1800.0])
+S0_LUT = np.array([0.0, 0.70, 0.85, 1.00, 0.90])
 TISSUE_NAMES = {
     0: "Background",
     1: "WM",
@@ -18,92 +12,153 @@ TISSUE_NAMES = {
 }
 
 
+def make_delays(m=10, t_min=100.0, t_max=5000.0):
+    """Return geometrically spaced recovery delays in milliseconds."""
+    if m < 2 or not np.isfinite([t_min, t_max]).all() or not 0 < t_min < t_max:
+        raise ValueError("Use at least two delays and 0 < t_min < t_max.")
+
+    return np.geomspace(t_min, t_max, m)
+
+
 def inside_ellipse(X, Y, cx, cy, a, b):
-    """Return a True/False grid marking points inside an ellipse."""
+    """Mark points inside an ellipse centered at (cx, cy) with radii a and b."""
     return ((X - cx) / a) ** 2 + ((Y - cy) / b) ** 2 <= 1.0
 
 
 def create_phantom(size=64):
-    """Create a (size, size) integer label map of a synthetic brain slice."""
-    # Build two (size, size) coordinate grids spanning [-1, 1] x [-1, 1]
-    ruler = np.linspace(-1.0, 1.0, size)
-    X, Y = np.meshgrid(ruler, ruler, indexing="xy")
+    """Draw the project phantom as a square grid of tissue labels."""
+    if size < 1:
+        raise ValueError("size must be positive.")
 
-    # Start with all pixels set to 0 (Background)
+    axis = np.linspace(-1.0, 1.0, size)
+    x, y = np.meshgrid(axis, axis)
     labels = np.zeros((size, size), dtype=int)
 
-    # Paint outermost regions first; inner regions overwrite outer ones
-    # 1. Gray Matter (label 2): large outer oval
-    gm = inside_ellipse(X, Y, cx=0.0, cy=0.0, a=0.85, b=0.72)
-    labels[gm] = 2
+    # Paint the big regions first so the smaller ones can replace their pixels.
+    grey_matter = inside_ellipse(x, y, 0.0, 0.0, 0.85, 0.72)
+    white_matter = inside_ellipse(x, y, 0.0, 0.0, 0.70, 0.56)
+    labels[grey_matter] = 2
+    labels[white_matter] = 1
 
-    # 2. White Matter (label 1): slightly smaller oval inside Gray Matter
-    wm = inside_ellipse(X, Y, cx=0.0, cy=0.0, a=0.70, b=0.56)
-    labels[wm] = 1
-
-    # 3. CSF Ventricles (label 3): two tall ovals near the center
-    left_ventricle = inside_ellipse(X, Y, cx=-0.18, cy=0.0, a=0.10, b=0.24)
-    right_ventricle = inside_ellipse(X, Y, cx=0.18, cy=0.0, a=0.10, b=0.24)
+    left_ventricle = inside_ellipse(x, y, -0.18, 0.0, 0.10, 0.24)
+    right_ventricle = inside_ellipse(x, y, 0.18, 0.0, 0.10, 0.24)
     labels[left_ventricle | right_ventricle] = 3
 
-    # 4. Lesion (label 4): small oval inside the right side of White Matter
-    lesion = inside_ellipse(X, Y, cx=0.42, cy=-0.20, a=0.14, b=0.12)
+    lesion = inside_ellipse(x, y, 0.42, -0.20, 0.14, 0.12)
     labels[lesion] = 4
+    return labels
+
+
+def create_labels(size=64):
+    """Draw the original slice using pixel-centered coordinates."""
+    if size < 1:
+        raise ValueError("size must be positive.")
+
+    # Place the pixel centers on a square that runs from -1 to 1.
+    pixel_centers = (np.arange(size) + 0.5) * (2 / size) - 1
+    x, y = np.meshgrid(pixel_centers, pixel_centers)
+    brain_ellipse = (x / 0.78) ** 2 + (y / 0.84) ** 2
+
+    # Fill the outer ellipse with grey matter and the inner part with white matter.
+    labels = np.zeros((size, size), dtype=np.uint8)
+    labels[brain_ellipse <= 1] = 2
+    labels[brain_ellipse <= 0.72] = 1
+
+    ventricle_shape = ((np.abs(x) - 0.16) / 0.10) ** 2 + ((y + 0.03) / 0.25) ** 2
+    labels[(labels == 1) & (ventricle_shape <= 1)] = 3
+
+    lesion_shape = ((x - 0.37) / 0.11) ** 2 + ((y - 0.20) / 0.14) ** 2
+    labels[(labels == 1) & (lesion_shape <= 1)] = 4
 
     return labels
 
 
+def tissue_maps(labels):
+    """Look up T1 in milliseconds and relative S0 for each pixel."""
+    labels = np.asarray(labels)
+    if not np.issubdtype(labels.dtype, np.integer) or np.any((labels < 0) | (labels > 4)):
+        raise ValueError("labels must contain integers from 0 through 4.")
+
+    return T1_LUT[labels], S0_LUT[labels]
+
+
+def make_noisy_data(T1_true, S0_true, t, snr, seed):
+    """Return signals as (row, column, delay). Use snr=np.inf for clean data."""
+    _, noisy = _simulate_signals(T1_true, S0_true, t, snr, seed)
+    return noisy
+
+
 def simulate_phantom_data(labels, t, snr=20):
-    """Map tissue labels to true T1/S0 and simulate clean + noisy MRI signals."""
-    t = np.asarray(t, dtype=float)
-    H, W = labels.shape
-    m = len(t)
+    """Return the T1 map, S0 map, clean signal, and noisy signal."""
+    t1_map, s0_map = tissue_maps(labels)
 
-    # Look up ground-truth parameter maps of shape (H, W)
-    T1_true = T1_LUT[labels]
-    S0_true = S0_LUT[labels]
+    # Use the same seed every time an SNR is repeated in the experiment.
+    seed = 1000 + int(snr) if np.isfinite(snr) and snr > 0 else 1000
+    clean, noisy = _simulate_signals(t1_map, s0_map, t, snr, seed)
+    return t1_map, s0_map, clean, noisy
 
-    # Reshape to (H, W, 1) and (1, 1, m) so NumPy computes all (H, W, m) values at once
-    T1_3d = T1_true.reshape(H, W, 1)
-    S0_3d = S0_true.reshape(H, W, 1)
-    t_3d = t.reshape(1, 1, m)
 
-    clean = S0_3d * (1.0 - np.exp(-t_3d / T1_3d))
+def _simulate_signals(T1_true, S0_true, t, snr, seed):
+    T1_true = np.asarray(T1_true, dtype=float)
+    S0_true = np.asarray(S0_true, dtype=float)
+    delays_ms = np.asarray(t, dtype=float)
 
-    # Dedicated RNG seed per SNR so adding new SNRs never alters existing datasets
-    rng = np.random.default_rng(1000 + int(snr))
-    noise_std = S0_3d / float(snr)
-    noise = rng.normal(loc=0.0, scale=noise_std, size=(H, W, m))
+    if T1_true.ndim != 2 or T1_true.shape != S0_true.shape:
+        raise ValueError("T1_true and S0_true must have matching 2-D shapes.")
+    if not np.isfinite(T1_true).all() or np.any(T1_true <= 0):
+        raise ValueError("T1_true must be positive and finite.")
+    if not np.isfinite(S0_true).all() or np.any(S0_true < 0):
+        raise ValueError("S0_true must be nonnegative and finite.")
+    if (
+        delays_ms.ndim != 1
+        or delays_ms.size == 0
+        or not np.isfinite(delays_ms).all()
+        or np.any(delays_ms < 0)
+    ):
+        raise ValueError("t must be a nonempty vector of finite, nonnegative delays.")
+    if not snr > 0:
+        raise ValueError("snr must be positive.")
 
-    # Keep negative noisy values unclipped so noise stays zero-mean
-    noisy = clean + noise
-    return T1_true, S0_true, clean, noisy
+    # Add a delay axis so each pixel has a signal value at every recovery time.
+    pixel_amplitude = S0_true[..., None]
+    recovery = -np.expm1(-delays_ms / T1_true[..., None])
+    clean_signal = pixel_amplitude * recovery
+
+    rng = np.random.default_rng(seed)
+    noise = rng.normal(scale=pixel_amplitude / snr, size=clean_signal.shape)
+    return clean_signal, clean_signal + noise
+
+
+def brain_pixels(labels):
+    """Return the row and column indices of pixels with a tissue label."""
+    return np.nonzero(np.asarray(labels) > 0)
 
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    labels = create_phantom(size=64)
-    counts = np.bincount(labels.ravel())
-    print("Pixel counts per class:", counts)
-    for class_id, count in enumerate(counts):
-        print(f"  {class_id} ({TISSUE_NAMES[class_id]}): {count} pixels")
+    labels = create_phantom()
+    counts = np.bincount(labels.ravel(), minlength=len(TISSUE_NAMES))
+    print("Pixel counts")
+    for label, name in TISSUE_NAMES.items():
+        print(f"  {name:10s} {counts[label]:4d}")
 
-    # Verify that empirical noise std per tissue matches S0 / SNR
-    t_delays = np.linspace(100.0, 3000.0, 10)
-    snr_value = 20
-    T1_true, S0_true, clean, noisy = simulate_phantom_data(labels, t_delays, snr=snr_value)
+    delays = np.linspace(100.0, 3000.0, 10)
+    snr = 20
+    _, _, clean, noisy = simulate_phantom_data(labels, delays, snr)
+    noise = noisy - clean
 
-    print(f"\nNoise standard deviation check (SNR = {snr_value}):")
-    for class_id in range(1, 5):
-        tissue_pixels = labels == class_id
-        measured_std = np.std((noisy - clean)[tissue_pixels])
-        expected_std = S0_LUT[class_id] / snr_value
-        print(f"  {TISSUE_NAMES[class_id]:6s}: measured={measured_std:.5f}, expected={expected_std:.5f}")
+    print(f"\nNoise standard deviation at SNR {snr}")
+    for label, name in TISSUE_NAMES.items():
+        measured = np.std(noise[labels == label])
+        expected = S0_LUT[label] / snr
+        print(f"  {name:10s} measured {measured:.5f} | expected {expected:.5f}")
 
-    plt.figure(figsize=(5, 5))
-    plt.imshow(labels, cmap="viridis", origin="upper")
-    plt.colorbar(ticks=[0, 1, 2, 3, 4], label="Tissue Class")
-    plt.title("Synthetic Brain Phantom (64x64)")
-    plt.tight_layout()
+    fig, ax = plt.subplots(figsize=(5, 5))
+    colors = plt.get_cmap("viridis", len(TISSUE_NAMES))
+    image = ax.imshow(labels, cmap=colors, vmin=-0.5, vmax=4.5)
+    colorbar = fig.colorbar(image, ax=ax, ticks=list(TISSUE_NAMES))
+    colorbar.set_ticklabels(list(TISSUE_NAMES.values()))
+    ax.set_title("Synthetic brain phantom")
+    fig.tight_layout()
     plt.show()
