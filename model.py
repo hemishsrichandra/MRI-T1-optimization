@@ -21,7 +21,6 @@ def _terms(x, t, y):
     predicted = s0 * -np.expm1(-scaled_time)
     residual = predicted - y
 
-    # u and v are the log of T1 and S0, respectively.
     r_u = -s0 * scaled_time * np.exp(-scaled_time)
     r_v = predicted
     r_uu = -r_u * (1 - scaled_time)

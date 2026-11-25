@@ -19,7 +19,6 @@ def backtracking(f, grad, d, x, alpha0=1.0, rho=0.5, c1=1e-4, min_alpha=1e-12):
     """Shrink the step until it gives enough decrease in f."""
     slope = grad @ d
 
-    # d must be a descent direction (slope < 0)
     if slope >= 0:
         return 0
 
@@ -247,7 +246,6 @@ def trust_region(f, g, h, x0, tol=1e-6, max_iter=300, delta0=1.0, delta_max=10.0
         trial = x + step
         ratio, delta = find_delta(x, trial, delta, f, grad, hessian, delta_max=delta_max)
 
-        # Keep the current point if the trial gives too little of the predicted gain.
         if ratio > eta:
             x = trial
             history.append(x.copy())
@@ -259,7 +257,6 @@ def trust_region(f, g, h, x0, tol=1e-6, max_iter=300, delta0=1.0, delta_max=10.0
         attempts += 1
 
 
-# Dictionary mapping solver names to callable functions
 ALL_SOLVERS = {
     "Steepest Descent": steepest_descent,
     "Classical Newton": classical_newton,

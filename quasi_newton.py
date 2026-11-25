@@ -83,7 +83,6 @@ def _quasi_newton(x0, f, g, max_iter, tol, update):
                 status = "diverged"
                 break
 
-            # Record the accepted point before computing its gradient.
             delta = x_new - x
             x, fx = x_new, float(f_new)
             history.append(x.copy())

@@ -58,7 +58,6 @@ def run_single_voxel_experiment(T1_true=1300.0, S0_true=0.85, snr=20, seed=42):
                 status, converged = result["reason"], result["converged"]
             runs_for_start[name] = result
 
-            # Check the log parameters before converting them back to T1 and S0.
             estimate = result["x"]
             if converged and np.all(np.abs(estimate) <= LOG_PARAMETER_LIMIT):
                 t1_estimate, s0_estimate = np.exp(estimate)

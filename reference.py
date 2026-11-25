@@ -31,7 +31,6 @@ def varpro_on_grid(u_grid, t, y, eps=1e-6):
     curve_dot_signal = recovery @ signal
     curve_dot_itself = np.einsum("ij,ij->i", recovery, recovery)
 
-    # The least-squares scale is the dot product divided by the squared norm.
     # If the recovery curve is all zeros, keep S0 at the floor.
     s0_values = np.full(log_t1_grid.shape, eps)
     np.divide(curve_dot_signal, curve_dot_itself, out=s0_values, where=curve_dot_itself > 0)
@@ -52,7 +51,6 @@ def reference_fit(t, y, rel_tol=1e-4, max_rounds=30):
     if not np.isfinite(rel_tol) or rel_tol <= 0 or max_rounds < 1:
         raise ValueError("rel_tol must be positive and max_rounds must be at least 1.")
 
-    # Use the same parameter limits as the model the solvers see.
     limit = LOG_PARAMETER_LIMIT
     grid = np.linspace(-limit, limit, 401)
     s0_floor = np.exp(-limit)

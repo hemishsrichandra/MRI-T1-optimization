@@ -34,7 +34,6 @@ def create_phantom(size=64):
     x, y = np.meshgrid(axis, axis)
     labels = np.zeros((size, size), dtype=int)
 
-    # Paint the big regions first so the smaller ones can replace their pixels.
     grey_matter = inside_ellipse(x, y, 0.0, 0.0, 0.85, 0.72)
     white_matter = inside_ellipse(x, y, 0.0, 0.0, 0.70, 0.56)
     labels[grey_matter] = 2
@@ -59,7 +58,6 @@ def create_labels(size=64):
     x, y = np.meshgrid(pixel_centers, pixel_centers)
     brain_ellipse = (x / 0.78) ** 2 + (y / 0.84) ** 2
 
-    # Fill the outer ellipse with grey matter and the inner part with white matter.
     labels = np.zeros((size, size), dtype=np.uint8)
     labels[brain_ellipse <= 1] = 2
     labels[brain_ellipse <= 0.72] = 1
@@ -92,7 +90,6 @@ def simulate_phantom_data(labels, t, snr=20):
     """Return the T1 map, S0 map, clean signal, and noisy signal."""
     t1_map, s0_map = tissue_maps(labels)
 
-    # Use the same seed every time an SNR is repeated in the experiment.
     seed = 1000 + int(snr) if np.isfinite(snr) and snr > 0 else 1000
     clean, noisy = _simulate_signals(t1_map, s0_map, t, snr, seed)
     return t1_map, s0_map, clean, noisy
