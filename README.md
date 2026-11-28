@@ -2,6 +2,23 @@
 
 How do six optimization methods compare when estimating T1 from noisy MRI recovery curves? We simulate voxel signals with known T1 and S0, fit the same noisy data with each solver, and compare fit quality, T1 accuracy, and computational cost.
 
+## Team
+
+**Team name** — GRADIENT ASCENT
+
+| Member name | Member ID |
+|---|---|
+| Hemish Sri Chandra | BA2025059 |
+| Srikar Sai Sagala | BA2025042 |
+| Sai Srujan | BA2025032 |
+
+## Libraries used
+
+- **NumPy** for signal simulation, array operations, linear algebra, and result archives.
+- **Matplotlib** for recovery curves, convergence plots, and T1 maps.
+
+The [project report](report.pdf) documents the mathematical formulation, solver implementations, and full benchmark results.
+
 ## Quick start
 
 Run the commands below from the repository root. The workflow was tested with Python 3.14.2, NumPy 2.4.1, and Matplotlib 3.10.8.
@@ -64,28 +81,30 @@ Absolute T1 error is `abs(exp(u_final) - T1_true)`, in milliseconds. Tissue RMSE
 
 Status codes are `-1` unfinished, `0` converged, `1` iteration limit, `2` diverged, and `3` linear algebra error.
 
-| Figure | Default output | What it shows |
+The figure numbers link to the published full-run plots from the November 25, 2026 audit.
+
+| Published figure | Default output | What it shows |
 |---|---|---|
-| 1 | `figures/figure_1_trajectories.png` | Solver paths on the loss contours for an example voxel at SNR 20 and a 4× start, with the reference fit marked. |
-| 2 | `figures/figure_2_convergence.png` | Base-10 log of the gradient norm versus iteration for the same voxel. |
-| 3 | `figures/figure_3_success_and_cost.png` | Loss-target success rates across SNRs and starts. Median step counts and runtimes use runs that met the target. |
-| 4 | `figures/figure_4_error_maps.png` | True T1, fitted T1, and absolute error for BFGS at SNR 20 and a 1× start. Background and unsampled pixels are masked. |
-| 5 | `figures/figure_5_tissue_rmse.png` | T1 RMSE by tissue and SNR for the six solvers and the oracle at a 1× start. Each comparison uses the same voxels with usable fits for all methods. Finite fits that reach the iteration limit can count. |
+| [1](figures/full/figure_1_trajectories.png) | `figures/figure_1_trajectories.png` | Solver paths on the loss contours for an example voxel at SNR 20 and a 4× start, with the reference fit marked. |
+| [2](figures/full/figure_2_convergence.png) | `figures/figure_2_convergence.png` | Base-10 log of the gradient norm versus iteration for the same voxel. |
+| [3](figures/full/figure_3_success_and_cost.png) | `figures/figure_3_success_and_cost.png` | Loss-target success rates across SNRs and starts. Median step counts and runtimes use runs that met the target. |
+| [4](figures/full/figure_4_error_maps.png) | `figures/figure_4_error_maps.png` | True T1, fitted T1, and absolute error for BFGS at SNR 20 and a 1× start. Background and unsampled pixels are masked. |
+| [5](figures/full/figure_5_tissue_rmse.png) | `figures/figure_5_tissue_rmse.png` | T1 RMSE by tissue and SNR for the six solvers and the oracle at a 1× start. Each comparison uses the same voxels with usable fits for all methods. Finite fits that reach the iteration limit can count. |
 
 ## Verified runs
 
 The seeded 5% smoke test completed 5,724 fits across 106 voxels. Of those, 5,149 met the loss target (90.0%), zero raised an oracle consistency flag, and the plotting command produced all five sample PNGs.
 
-The completed full run met the loss target in 101,891 of 114,048 fits (89.3%) and raised zero oracle consistency flags. Each solver had 19,008 runs across the default SNRs and starts. The table pools those runs and calculates medians over the fits that met the target. Runtime reflects the verification machine.
+The completed full run used in the report met the loss target in 101,891 of 114,048 fits (89.3%) and raised zero oracle consistency flags. Each solver had 19,008 runs across the default SNRs and starts. The table pools those runs and calculates medians over the fits that met the target. Runtime reflects the machine used for the November 25, 2026 audit.
 
 | Solver | Runs meeting target | Median steps | Median runtime (ms) |
 |---|---:|---:|---:|
-| `SD` | 18,273 | 146 | 15.50 |
+| `SD` | 18,273 | 146 | 15.12 |
 | `Newton` | 7,882 | 3 | 0.61 |
-| `ModNewton` | 19,004 | 6 | 1.06 |
-| `TR` | 18,889 | 90 | 20.02 |
-| `DFP` | 18,835 | 17 | 1.76 |
-| `BFGS` | 19,008 | 11 | 1.10 |
+| `ModNewton` | 19,004 | 6 | 1.01 |
+| `TR` | 18,889 | 90 | 19.30 |
+| `DFP` | 18,835 | 17 | 1.71 |
+| `BFGS` | 19,008 | 11 | 1.07 |
 
 For the BFGS error map in Figure 4, the median absolute T1 error was 66.8 ms across all 2,112 brain voxels. The full plotting command generated all five PNGs.
 
