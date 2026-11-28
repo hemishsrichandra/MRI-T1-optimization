@@ -1,79 +1,88 @@
-"""Run the solvers on one noisy recovery curve from two starting points."""
-
 import numpy as np
-
-from model import LOG_PARAMETER_LIMIT, make_fgh, signal
-from quasi_newton import bfgs, dfp
-from reference import reference_fit
+from model import signal, make_fgh
 from solvers import ALL_SOLVERS as CORE_SOLVERS
+from quasi_newton import dfp, bfgs
 
 QUASI_SOLVERS = {
     "Quasi-Newton (DFP)": dfp,
     "Quasi-Newton (BFGS)": bfgs,
 }
+
 ALL_SIX_SOLVERS = {**CORE_SOLVERS, **QUASI_SOLVERS}
 
-
 def run_single_voxel_experiment(T1_true=1300.0, S0_true=0.85, snr=20, seed=42):
-    delays = np.linspace(100.0, 3000.0, 10)
-    x_true = np.log([T1_true, S0_true])
+    t = np.linspace(100.0, 3000.0, 10)
+    x_true = np.array([np.log(T1_true), np.log(S0_true)], dtype=float)
 
-    clean = signal(x_true, delays)
+    clean_y = signal(x_true, t)
     rng = np.random.default_rng(seed)
-    noisy = clean + rng.normal(scale=S0_true / snr, size=delays.shape)
-    f, g, h = make_fgh(delays, noisy)
+    noisy_y = clean_y + rng.normal(loc=0.0, scale=S0_true / snr, size=t.shape)
+
+    f, g, h = make_fgh(t, noisy_y)
 
     starts = {
         "Near start (T1=1000, S0=1.0)": np.array([np.log(1000.0), np.log(1.0)]),
         "Far start  (T1=150,  S0=0.2)": np.array([np.log(150.0), np.log(0.2)]),
     }
 
-    ref_log_t1, ref_log_s0, ref_loss = reference_fit(delays, noisy)
-    print(f"True values   T1 = {T1_true:.1f} ms | S0 = {S0_true:.3f} | SNR = {snr}")
-    print(
-        f"Grid fit      T1 = {np.exp(ref_log_t1):.1f} ms | "
-        f"S0 = {np.exp(ref_log_s0):.3f} | loss = {ref_loss:.3e}"
-    )
+    print(f"Ground Truth: T1 = {T1_true:.1f} ms, S0 = {S0_true:.3f} (SNR = {snr})")
 
     all_runs = {}
+
     for label, x0 in starts.items():
-        print(f"\n{label}")
+        print()
+        print(f"Initialization: {label}  ->  x0 = [{x0[0]:.3f}, {x0[1]:.3f}]")
+        print("-" * 86)
         header = (
-            f"{'Solver':<20} | {'Steps':>5} | {'Loss':>10} | "
-            f"{'T1 (ms)':>9} | {'S0':>7} | {'T1 error':>8} | Status"
+            f"{'Solver':<23} | {'Conv':<5} | {'Iters':>5} | {'Final Loss':>11} | "
+            f"{'T1_est (ms)':>11} | {'S0_est':>7} | {'T1 Err %':>8}"
         )
         print(header)
-        print("-" * len(header))
+        print("-" * 86)
 
         runs_for_start = {}
-        for name, solver in ALL_SIX_SOLVERS.items():
+        for name, solver_fn in ALL_SIX_SOLVERS.items():
             if name in QUASI_SOLVERS:
-                result = solver(x0, f, g, h)
-                steps, final_loss = result["iters"], result["f"]
-                status = result["status"]
-                converged = status == "converged"
+                raw_res = solver_fn(x0, f, g, h)
+                res = {
+                    "x": raw_res["x"],
+                    "path": raw_res["history"],
+                    "f_vals": [raw_res["f"]],
+                    "g_norms": raw_res["grad_norms"],
+                    "nit": raw_res["iters"],
+                    "converged": raw_res["status"] == "converged",
+                    "reason": raw_res["status"],
+                }
             else:
-                result = solver(f, g, h, x0)
-                steps, final_loss = result["nit"], result["f_vals"][-1]
-                status, converged = result["reason"], result["converged"]
-            runs_for_start[name] = result
+                res = solver_fn(f, g, h, x0)
+            runs_for_start[name] = res
 
-            estimate = result["x"]
-            if converged and np.all(np.abs(estimate) <= LOG_PARAMETER_LIMIT):
-                t1_estimate, s0_estimate = np.exp(estimate)
-                error_percent = abs(t1_estimate - T1_true) / T1_true * 100.0
-                estimates = f"{t1_estimate:9.2f} | {s0_estimate:7.4f} | {error_percent:7.2f}%"
+            u_est, v_est = res["x"]
+            # Guard against overflowed coordinates if Classical Newton diverged
+            if res["converged"] and np.isfinite(u_est) and abs(u_est) < 50:
+                T1_est = np.exp(u_est)
+                S0_est = np.exp(v_est)
+                err_pct = abs(T1_est - T1_true) / T1_true * 100.0
+                t1_str = f"{T1_est:11.2f}"
+                s0_str = f"{S0_est:7.4f}"
+                err_str = f"{err_pct:7.2f}%"
             else:
-                estimates = f"{'-':>9} | {'-':>7} | {'-':>8}"
+                t1_str = f"{'DIVERGED':>11}"
+                s0_str = f"{'---':>7}"
+                err_str = f"{'---':>8}"
+
+            loss_val = res["f_vals"][-1]
+            loss_str = f"{loss_val:11.3e}" if np.isfinite(loss_val) else f"{'inf':>11}"
 
             print(
-                f"{name:<20} | {steps:5d} | {final_loss:10.3e} | "
-                f"{estimates} | {status}"
+                f"{name:<23} | {str(res['converged']):<5} | {res['nit']:>5d} | "
+                f"{loss_str} | {t1_str} | {s0_str} | {err_str}"
             )
 
         all_runs[label] = runs_for_start
+        print()
 
-    return delays, noisy, x_true, all_runs
+    return t, noisy_y, x_true, all_runs
 
 
 if __name__ == "__main__":

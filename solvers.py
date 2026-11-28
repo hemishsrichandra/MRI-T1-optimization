@@ -1,7 +1,4 @@
-"""Optimization methods that share the same result format."""
-
 import numpy as np
-
 
 def _make_result(x, history, f_vals, g_norms, converged, reason):
     return {
@@ -16,7 +13,7 @@ def _make_result(x, history, f_vals, g_norms, converged, reason):
 
 
 def backtracking(f, grad, d, x, alpha0=1.0, rho=0.5, c1=1e-4, min_alpha=1e-12):
-    """Shrink the step until it gives enough decrease in f."""
+    # Shrink the step until it gives enough decrease in f
     slope = grad @ d
 
     if slope >= 0:
@@ -27,7 +24,7 @@ def backtracking(f, grad, d, x, alpha0=1.0, rho=0.5, c1=1e-4, min_alpha=1e-12):
 
 
 def armijo(f, x, fx, g_x, d, c1=1e-4, rho=0.5, max_back=40):
-    """Try the full step and up to max_back reductions."""
+    # Try the full step and up to max_back reductions
     slope = g_x @ d
     if not np.isfinite(slope) or slope >= 0:
         return None, x, fx
@@ -54,7 +51,7 @@ def _armijo_trials(f, x, fx, d, slope, alpha, c1, rho, min_alpha, max_trials=np.
 
 
 def steepest_descent(f, g, h, x0, tol=1e-6, max_iter=500):
-    """Follow the negative gradient with a backtracking step size."""
+    # Follow the negative gradient with a backtracking step size
     steps = 0
     x = np.array(x0, dtype=float)
     history = [x.copy()]
@@ -89,7 +86,7 @@ def steepest_descent(f, g, h, x0, tol=1e-6, max_iter=500):
 
 
 def classical_newton(f, g, h, x0, tol=1e-6, max_iter=100):
-    """Take the full Newton step from the gradient and Hessian."""
+    # Take the full Newton step from the gradient and Hessian
     steps = 0
     x = np.array(x0, dtype=float)
     history = [x.copy()]
@@ -130,7 +127,7 @@ def classical_newton(f, g, h, x0, tol=1e-6, max_iter=100):
 
 
 def modified_newton(f, g, h, x0, tol=1e-6, max_iter=200, delta=1e-3):
-    """Shift the Hessian when needed, then use backtracking."""
+    # Shift the Hessian when needed, then use backtracking
     steps = 0
     x = np.array(x0, dtype=float)
     history = [x.copy()]
@@ -176,13 +173,13 @@ def modified_newton(f, g, h, x0, tol=1e-6, max_iter=200, delta=1e-3):
 
 
 def fqk(x, x_k, f, grad, hessian):
-    """Evaluate the quadratic approximation around x_k at x."""
+    # Evaluate the quadratic approximation around x_k at x
     step = x - x_k
     return f(x_k) + grad @ step + 0.5 * (step @ hessian @ step)
 
 
 def find_delta(x_k, x_k_plus_1, delta, f, grad, hessian, delta_max=10.0):
-    """Use the agreement between actual and predicted decrease to update the radius."""
+    # Use the agreement between actual and predicted decrease to update the radius.
     model_now = fqk(x_k, x_k, f, grad, hessian)
     model_trial = fqk(x_k_plus_1, x_k, f, grad, hessian)
     predicted_drop = model_now - model_trial
@@ -203,7 +200,7 @@ def find_delta(x_k, x_k_plus_1, delta, f, grad, hessian, delta_max=10.0):
 
 
 def cauchy_step(grad, hessian, delta):
-    """Pick a step along the negative gradient within the trust radius."""
+    # Pick a step along the negative gradient within the trust radius
     g_norm = np.linalg.norm(grad)
     if g_norm == 0.0:
         return np.zeros_like(grad)
@@ -218,7 +215,7 @@ def cauchy_step(grad, hessian, delta):
 
 
 def trust_region(f, g, h, x0, tol=1e-6, max_iter=300, delta0=1.0, delta_max=10.0, eta=0.1):
-    """Follow a Cauchy step and adjust the radius after each trial."""
+    # Follow a Cauchy step and adjust the radius after each trial
     attempts = 0
     x = np.array(x0, dtype=float)
     delta = float(delta0)
