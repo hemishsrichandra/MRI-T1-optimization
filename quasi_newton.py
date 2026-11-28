@@ -1,5 +1,3 @@
-"""DFP and BFGS with an inverse-Hessian estimate and Armijo step sizes."""
-
 import numpy as np
 
 from solvers import armijo
@@ -18,7 +16,6 @@ def _curvature(a, b):
 
 
 def dfp_update(B, delta, gamma):
-    """Apply the inverse DFP update when both curvature terms are safe."""
     with np.errstate(over="ignore", invalid="ignore"):
         curvature = _curvature(delta, gamma)
         if curvature is None:
@@ -37,7 +34,6 @@ def dfp_update(B, delta, gamma):
 
 
 def bfgs_update(B, delta, gamma):
-    """Apply the inverse BFGS update when the curvature is safe."""
     with np.errstate(over="ignore", invalid="ignore"):
         curvature = _curvature(delta, gamma)
         if curvature is None:
@@ -107,10 +103,8 @@ def _quasi_newton(x0, f, g, max_iter, tol, update):
 
 
 def dfp(x0, f, g, h, max_iter=200, tol=1e-8):
-    """Minimize f using gradient g and the inverse DFP update."""
     return _quasi_newton(x0, f, g, max_iter, tol, dfp_update)
 
 
 def bfgs(x0, f, g, h, max_iter=200, tol=1e-8):
-    """Minimize f using gradient g and the inverse BFGS update."""
     return _quasi_newton(x0, f, g, max_iter, tol, bfgs_update)

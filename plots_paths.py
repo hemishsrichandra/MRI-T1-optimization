@@ -1,5 +1,3 @@
-"""Show what each solver does on the same MRI voxel and starting point."""
-
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -25,7 +23,6 @@ LOG_PLOT_FLOOR = 1e-16
 
 
 def save_figure(fig, out):
-    """Save a PNG and close the figure so repeated calls free the memory."""
     path = Path(out)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=170, facecolor="white")
@@ -54,7 +51,6 @@ def _caption(T1_true, factor, snr):
 
 
 def fig_trajectories(t, y, T1_true, factor, *, snr=None, out=FIGURE_DIR / "figure_1_trajectories.png"):
-    """Save Figure 1 with the loss contours, solver paths, and reference fit."""
     x0, f, runs = _fit_voxel(t, y, T1_true, factor)
     ref_u, ref_v, _ = reference_fit(t, y)
     optimum = np.array([ref_u, ref_v])
@@ -94,7 +90,6 @@ def fig_trajectories(t, y, T1_true, factor, *, snr=None, out=FIGURE_DIR / "figur
 
 
 def fig_convergence(t, y, T1_true, factor, *, snr=None, out=FIGURE_DIR / "figure_2_convergence.png"):
-    """Save Figure 2 with gradient norms starting at iteration zero."""
     _, _, runs = _fit_voxel(t, y, T1_true, factor)
     fig, ax = plt.subplots(figsize=(9, 4.8), layout="constrained")
 

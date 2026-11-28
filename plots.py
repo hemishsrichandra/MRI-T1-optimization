@@ -1,5 +1,3 @@
-"""Make the five MRI benchmark figures from a completed results archive."""
-
 import argparse
 from pathlib import Path
 
@@ -13,7 +11,6 @@ from plots_paths import FIGURE_DIR, SOLVER_COLORS, fig_convergence, fig_trajecto
 
 
 def load_results(path):
-    """Read the arrays and check the run and reference axes."""
     with np.load(path, allow_pickle=False) as archive:
         res = {name: archive[name] for name in archive.files}
 
@@ -47,7 +44,6 @@ def _median_by_start(values, keep):
 
 
 def fig_success_and_cost(res, *, out=FIGURE_DIR / "figure_3_success_and_cost.png"):
-    """Save success rates and costs for runs that meet the loss target."""
     snrs = res["snrs"]
     starts = np.arange(res["factors"].size)
     start_labels = [f"{factor:g}x" for factor in res["factors"]]
@@ -92,7 +88,6 @@ def _default_start(res):
 
 
 def _t1_estimates(res, snr_index, start_index):
-    """Keep finite, model-valid fits that converged or reached the iteration limit."""
     u = res["u_final"][snr_index, start_index]
     v = res["v_final"][snr_index, start_index]
     f = res["f_final"][snr_index, start_index]
@@ -103,7 +98,6 @@ def _t1_estimates(res, snr_index, start_index):
 
 
 def fig_error_maps(res, labels, T1_true, snr, *, out=FIGURE_DIR / "figure_4_error_maps.png"):
-    """Save the sampled true T1, fitted T1, and absolute error maps."""
     matches = np.flatnonzero(res["snrs"] == snr)
     if matches.size == 0:
         raise ValueError(f"SNR {snr:g} is not in the results file.")
@@ -146,7 +140,6 @@ def fig_error_maps(res, labels, T1_true, snr, *, out=FIGURE_DIR / "figure_4_erro
 
 
 def fig_tissue_rmse(res, labels, T1_true, *, out=FIGURE_DIR / "figure_5_tissue_rmse.png"):
-    """Compare T1 RMSE on the same usable voxels for every method and the oracle."""
     start_index = _default_start(res)
     rows, cols = res["rows"], res["cols"]
     tissue = labels[rows, cols]

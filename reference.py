@@ -1,12 +1,9 @@
-"""Grid-search baseline for comparing the MRI solvers."""
-
 import numpy as np
 
 from model import LOG_PARAMETER_LIMIT
 
 
 def varpro_on_grid(u_grid, t, y, eps=1e-6):
-    """Fit S0 at each grid point and return (log T1, S0, loss) for the best fit."""
     log_t1_grid = np.asarray(u_grid, dtype=float)
     delays = np.asarray(t, dtype=float)
     signal = np.asarray(y, dtype=float)
@@ -47,7 +44,6 @@ def varpro_on_grid(u_grid, t, y, eps=1e-6):
 
 
 def reference_fit(t, y, rel_tol=1e-4, max_rounds=30):
-    """Search for T1 on a finer grid each round and return (log T1, log S0, loss)."""
     if not np.isfinite(rel_tol) or rel_tol <= 0 or max_rounds < 1:
         raise ValueError("rel_tol must be positive and max_rounds must be at least 1.")
 
@@ -80,7 +76,6 @@ def reference_fit(t, y, rel_tol=1e-4, max_rounds=30):
 
 
 def reference_map(Y, rows, cols, t):
-    """Fit each requested pixel and return arrays of log T1 and loss."""
     signal_data = np.asarray(Y, dtype=float)
     rows = np.asarray(rows)
     cols = np.asarray(cols)

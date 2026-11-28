@@ -1,5 +1,3 @@
-"""Solvers with a common call signature and result format for plotting."""
-
 import numpy as np
 
 from quasi_newton import bfgs, dfp

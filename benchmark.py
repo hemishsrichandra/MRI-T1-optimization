@@ -1,5 +1,3 @@
-"""Fit the same noisy voxels with each solver and save the benchmark as an NPZ."""
-
 import argparse
 import os
 from pathlib import Path
@@ -31,19 +29,16 @@ RUN_FIELDS = ("f_final", "u_final", "v_final", "iters", "time", "status_code", "
 
 
 def make_start(y, T1_true, factor):
-    """Start at a multiple of true T1 and use the peak signal to guess S0."""
     u0 = np.log(factor * T1_true)
     v0 = np.log(max(1e-3, np.max(y)))
     return np.array([u0, v0])
 
 
 def is_success(f_final, f_ref):
-    """Check whether the final loss meets the target for this noisy curve."""
     return bool(np.isfinite(f_final) and np.isfinite(f_ref) and f_final <= (1 + LOSS_MARGIN) * f_ref)
 
 
 def noise_seed(snr):
-    """Key the noise seed to the SNR value, so changing the SNR order is safe."""
     snr_bits = int(np.float64(snr).view(np.uint64))
     return NOISE_SEED, snr_bits
 
@@ -64,7 +59,6 @@ def _save_checkpoint(path, results):
 
 
 def run_benchmark(sample_fraction=1.0, snrs=(10, 20, 40), factors=(0.25, 1, 4), out="results.npz"):
-    """Save results in (SNR, start, voxel, solver) order and return the arrays."""
     if not 0 < sample_fraction <= 1:
         raise ValueError("sample_fraction must be in (0, 1].")
 
